@@ -216,42 +216,111 @@ decode_opcode:
 	mov	R2, a
 
 	; Opcode dispatch.
-	cjne	R2, #0x37, decode_0  ; LUI
-	ljmp	exec_lui
-decode_0:
-	cjne	R2, #0x17, decode_1  ; AUIPC
-	ljmp	exec_auipc
-decode_1:
-	cjne	R2, #0x6F, decode_2  ; JAL
-	ljmp	exec_jal
-decode_2:
-	cjne	R2, #0x67, decode_3  ; JALR
-	lcall	extract_funct3
-	; funct3 is now also in A
-	jnz	decode_3
-	ljmp	exec_jalr
-decode_3:
-	cjne	R2, #0x63, decode_4  ; BRANCH
-	ljmp	exec_branch
-decode_4:
-	cjne	R2, #0x03, decode_5  ; LOAD
-	ljmp	exec_load
-decode_5:
-	cjne	R2, #0x23, decode_6  ; STORE
-	ljmp	exec_store
-decode_6:
-	cjne	R2, #0x13, decode_7  ; OP-IMM
-	ljmp	exec_op_imm
-decode_7:
-	cjne	R2, #0x33, decode_8  ; OP
-	ljmp	exec_op
-decode_8:
-	cjne	R2, #0x0F, decode_9  ; MISC-MEM
+
+        ; We begin by creating a 4b index into a jump table
+        ; index = [opcode[6:4], (opcode[3] | opcode[2])]
+        ; This index can refer to up to two (in the JAL/JALR case) opcodes,
+        ; as well as some number of invalid opcodes
+        ; this index is shifted left by three to allow up to 8 bytes of
+        ; instructions per entry
+        mov     c, a.2
+        orl     c, a.3
+        mov     a.3, c
+        anl     a, #0xf8
+
+        push    dph
+        push    dpl
+
+        mov     dptr, #decode_jump_table
+        jmp     @a+dptr
+
+decode_jump_table:
+        cjne    R2, #03, decode_10   ; LOAD
+        ljmp    exec_load
+        .db     0,0
+
+        cjne    R2, #0x0F, decode_10   ; MISC-MEM
 	; FENCE instructions are a no-op because this virtual core is
 	; entirely in-order, meaning all memory operations are already
 	; guaranteed to finish before the instructions that follow them.
-	ret
-decode_9:
+        pop     dpl
+        pop     dph
+        ret
+        .db     0
+
+	cjne	R2, #0x13, decode_10 ; OP-IMM
+        ljmp    exec_op_imm
+        .db     0,0
+
+	cjne	R2, #0x17, decode_10 ; AUIPC
+	ljmp	exec_auipc
+        .db     0,0
+
+	cjne	R2, #0x23, decode_10  ; STORE
+	ljmp	exec_store
+        .db     0,0
+
+        ljmp    decode_10       ; invalid - BOZO check offset
+        .db     0,0,0,0,0
+
+	cjne	R2, #0x33, decode_10  ; OP
+	ljmp	exec_op
+        .db     0,0
+
+	cjne	R2, #0x37, decode_10  ; LUI
+	ljmp	exec_lui
+        .db     0,0
+
+        ljmp    decode_10       ; invalid - BOZO check offset
+        .db     0,0,0,0,0
+
+        ljmp    decode_10       ; invalid - BOZO check offset
+        .db     0,0,0,0,0
+
+        ljmp    decode_10       ; invalid - BOZO check offset
+        .db     0,0,0,0,0
+
+        ljmp    decode_10       ; invalid - BOZO check offset
+        .db     0,0,0,0,0
+
+	cjne	R2, #0x63, decode_10  ; BRANCH
+	ljmp	exec_branch
+        .db     0,0
+
+        ; JAL/JALR: defer invalid check to decode function
+        ljmp    decode_jalX
+        .db     0,0,0,0,0
+
+	cjne	R2, #0x73, decode_10  ; SYSTEM
+        ljmp    decode_system
+        .db     0,0
+
+        ljmp    decode_10       ; invalid - BOZO check offset
+        .db     0,0,0,0,0
+
+decode_10:
+	; Unrecognized instruction or execution function didn't "ret".
+	sjmp	.
+
+decode_jalX:
+        pop     dpl
+        pop     dph
+
+        ; JAL, JALR, or invalid
+	cjne	R2, #0x6F, decode_jalr  ; JAL
+	ajmp	exec_jal
+
+decode_jalr:
+	cjne	R2, #0x67, decode_10  ; JALR
+	lcall	extract_funct3
+	; funct3 is now also in A
+	jnz	decode_10       ; invalid
+	ajmp	exec_jalr
+
+decode_system:
+        pop     dpl
+        pop     dph
+
 	cjne	R2, #0x73, decode_10  ; SYSTEM
 	lcall	extract_funct3
 	; funct3 is now also in A
@@ -296,9 +365,6 @@ exec_ebreak:
 
 exec_csr_op:
 	ljmp	exec_csr_op_impl
-decode_10:
-	; Unrecognized instruction or execution function didn't "ret".
-	sjmp	.
 
 exec_ecall:
 	mov	R1, #(rv_x0 + (4 * 17))  ; Syscall number is in register a7 (x17).
@@ -327,11 +393,16 @@ exec_ecall_exception:
 	ljmp	prepare_jump_to_synchronous_trap
 
 exec_load:
+        ; Restore registers used in jump table
+        pop     dpl
+        pop     dph
+
 	lcall	extract_rd
 
 	; Return early if we're writing the zero register.
 	mov	a, rd
 	jnz	exec_load_rd_not_zero
+
 	ret
 
 exec_load_rd_not_zero:
@@ -792,6 +863,9 @@ sfr_read_jump_table_hi:
 	sfr_read_case	0xFF
 
 exec_branch:
+        pop     dpl
+        pop     dph
+
 	; Skip extracting funct3--instead use the bits directly from the
 	; instruction.
 	inst_funct3_bit_0__set_if_negated	= (((instruction_0 - 0x20) * 8) + 12)
@@ -1033,6 +1107,9 @@ jump_to_current_PC_plus_immediate:
 	ret
 
 exec_store:
+        pop     dpl
+        pop     dph
+
 	lcall	extract_funct3
 	lcall	extract_rs1
 	lcall	extract_rs2
@@ -1369,6 +1446,9 @@ sfr_write_jump_table_hi:
 	ret
 
 exec_op_imm:
+        pop     dpl
+        pop     dph
+
 	lcall	extract_rd
 
 	; Return early if we're writing the zero register.
@@ -1390,6 +1470,7 @@ exec_op_imm_rd_not_zero:
 	; into the low bits.
 	mov	a, funct3
 	rl	a
+        add     a, funct3
 
 	; Save dptr. Each execution function will need to restore dptr
 	; since they don't return to this function.
@@ -1401,13 +1482,13 @@ exec_op_imm_rd_not_zero:
 	jmp	@a+dptr
 
 exec_op_imm_jump_table:
-	ajmp	exec_addi  ; 0, ADDI
-	ajmp	exec_slli  ; 1, SLLI
-	ajmp	exec_slti_sltiu  ; 2, SLTI
-	ajmp	exec_slti_sltiu  ; 3, SLTIU
-	ajmp	exec_xori  ; 4, XORI
-	ajmp	exec_srli_srai  ; 5, SRLI/SRAI
-	ajmp	exec_ori  ; 6, ORI
+	ljmp	exec_addi  ; 0, ADDI
+	ljmp	exec_slli  ; 1, SLLI
+	ljmp	exec_slti_sltiu  ; 2, SLTI
+	ljmp	exec_slti_sltiu  ; 3, SLTIU
+	ljmp	exec_xori  ; 4, XORI
+	ljmp	exec_srli_srai  ; 5, SRLI/SRAI
+	ljmp	exec_ori  ; 6, ORI
 	ljmp	exec_andi  ; 7, ANDI
 
 	; No need for a default case as the value of A is already
@@ -1765,6 +1846,9 @@ exec_andi:
 	ret
 
 exec_op:
+        pop     dpl
+        pop     dph
+
 	lcall	extract_rd
 
 	; Return early if we're writing the zero register.
@@ -3175,6 +3259,9 @@ exec_and:
 	ret
 
 exec_auipc:
+        pop     dpl
+        pop     dph
+
 	lcall	extract_rd
 
 	; Return early if we're writing the zero register.
@@ -3211,6 +3298,9 @@ exec_auipc_rd_not_zero:
 	ret
 
 exec_lui:
+        pop     dpl
+        pop     dph
+
 	lcall	extract_rd
 
 	; Return early if we're writing the zero register.
