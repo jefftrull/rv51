@@ -1410,6 +1410,7 @@ exec_op_imm_rd_not_zero:
 	; into the low bits.
 	mov	a, funct3
 	rl	a
+        add     a, funct3
 
 	; Save dptr. Each execution function will need to restore dptr
 	; since they don't return to this function.
@@ -1421,13 +1422,13 @@ exec_op_imm_rd_not_zero:
 	jmp	@a+dptr
 
 exec_op_imm_jump_table:
-	ajmp	exec_addi  ; 0, ADDI
-	ajmp	exec_slli  ; 1, SLLI
-	ajmp	exec_slti_sltiu  ; 2, SLTI
-	ajmp	exec_slti_sltiu  ; 3, SLTIU
-	ajmp	exec_xori  ; 4, XORI
-	ajmp	exec_srli_srai  ; 5, SRLI/SRAI
-	ajmp	exec_ori  ; 6, ORI
+	ljmp	exec_addi  ; 0, ADDI
+	ljmp	exec_slli  ; 1, SLLI
+	ljmp	exec_slti_sltiu  ; 2, SLTI
+	ljmp	exec_slti_sltiu  ; 3, SLTIU
+	ljmp	exec_xori  ; 4, XORI
+	ljmp	exec_srli_srai  ; 5, SRLI/SRAI
+	ljmp	exec_ori  ; 6, ORI
 	ljmp	exec_andi  ; 7, ANDI
 
 	; No need for a default case as the value of A is already
