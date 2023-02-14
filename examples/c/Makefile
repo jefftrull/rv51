@@ -15,10 +15,10 @@
 # PERFORMANCE OF THIS SOFTWARE.
 
 
-PREFIX := riscv32-elf-
+PREFIX := riscv32-unknown-elf-
 AS := $(PREFIX)as
 ASFLAGS := -march=rv32im
-CC := riscv64-elf-gcc
+CC := $(PREFIX)gcc
 CFLAGS := -Wall -march=rv32im -mabi=ilp32 -nostdlib -nostartfiles -nodefaultlibs -fno-builtin -ffreestanding -O2
 LD := $(PREFIX)ld
 LDFLAGS := -T linker.ld -Map hello-rv32.map
