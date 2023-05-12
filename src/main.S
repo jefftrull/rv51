@@ -4101,5 +4101,12 @@ emulator_size:
 	.db	0
 	.db	0
 
+        .$.end = .              ; end of area address
+        .bndry  4               ; set boundary
+        .if ne,. - .$.end       ; is . the same ?
+          . = . - 1             ; no: backup 1 byte
+          .byte 0               ; place padding byte
+        .endif
+
 rv_code:
 	; This label points to the start of the RISC-V code.
