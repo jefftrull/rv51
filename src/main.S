@@ -1482,8 +1482,8 @@ exec_slli:
 	; Save the shift amount in R2.
 	mov	R2, a
 
-        ; immediately handle the common shift=3 case
-        cjne    a, #0x3, exec_slli_shift_ne_3
+	; immediately handle the common shift=3 case
+	cjne    a, #0x3, exec_slli_shift_ne_3
 
 exec_slli_loop:
 	mov	a, rs1_dat0
@@ -1514,44 +1514,44 @@ exec_slli_shift_is_zero:
 	ret
 
 exec_slli_shift_ne_3:
-        jnc     exec_slli_shift_ge_4
-        jnz     exec_slli_loop          ; either 1 or 2
-        sjmp    exec_slli_shift_is_zero
+	jnc     exec_slli_shift_ge_4
+	jnz     exec_slli_loop          ; either 1 or 2
+	sjmp    exec_slli_shift_is_zero
 
 exec_slli_shift_ge_4:
-        ; accelerated implementation for counts above 3, using swap/xchd
-        ; R1 has already been changed; we will use it for XCHD (only R0 or R1)
-        mov     R1, #rs1_dat3
-        mov     a, @R1
-        swap    a
-        mov     @R1, a                  ; rs1_dat3[7:4] is correct
-        mov     a, rs1_dat2
-        swap    a
-        xchd    a, @R1                  ; rs1_dat3[3:0] correct
-        dec     R1
-        mov     @R1, a                  ; rs1_dat2[7:4]
-        mov     a, rs1_dat1
-        swap    a
-        xchd    a, @R1                  ; rs1_dat2[3:0]
-        dec     R1
-        mov     @R1, a                  ; rs1_dat1[7:4]
-        mov     a, rs1_dat0
-        swap    a
-        xchd    a, @R1                  ; rs1_dat1[3:0]
-        anl     a, #0xf0
-        mov     rs1_dat0, a             ; rs1_dat0[7:0]
+	; accelerated implementation for counts above 3, using swap/xchd
+	; R1 has already been changed; we will use it for XCHD (only R0 or R1)
+	mov     R1, #rs1_dat3
+	mov     a, @R1
+	swap    a
+	mov     @R1, a                  ; rs1_dat3[7:4] is correct
+	mov     a, rs1_dat2
+	swap    a
+	xchd    a, @R1                  ; rs1_dat3[3:0] correct
+	dec     R1
+	mov     @R1, a                  ; rs1_dat2[7:4]
+	mov     a, rs1_dat1
+	swap    a
+	xchd    a, @R1                  ; rs1_dat2[3:0]
+	dec     R1
+	mov     @R1, a                  ; rs1_dat1[7:4]
+	mov     a, rs1_dat0
+	swap    a
+	xchd    a, @R1                  ; rs1_dat1[3:0]
+	anl     a, #0xf0
+	mov     rs1_dat0, a             ; rs1_dat0[7:0]
 
-        mov     a, R2
-        subb    a, #4
-        ;; we have completed a 4b shift and have now deducted 4 from the count
-        ;; if we are down to zero we need to exit
-        jz      exec_slli_shift_is_zero
-        mov     R2, a
-        ;; if >= 4, take another run through this code
-        subb    a, #4
-        jnc     exec_slli_shift_ge_4
-        ;; otherwise, exec_slli_loop
-        sjmp    exec_slli_loop
+	mov     a, R2
+	subb    a, #4
+	; we have completed a 4b shift and have now deducted 4 from the count
+	; if we are down to zero we need to exit
+	jz      exec_slli_shift_is_zero
+	mov     R2, a
+	; if >= 4, take another run through this code
+	subb    a, #4
+	jnc     exec_slli_shift_ge_4
+	; otherwise, exec_slli_loop
+	sjmp    exec_slli_loop
 
 
 exec_slti_sltiu:
