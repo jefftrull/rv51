@@ -355,8 +355,8 @@ exec_ecall:
 	mov	R1, #(rv_x0 + (4 * 17))  ; Syscall number is in register a7 (x17).
 	mov	a, @R1
 
-	; Only directly handle the "exit" syscall.
-	cjne	a, #93, exec_ecall_exception
+	; Directly handle the "exit" syscall.
+	cjne	a, #93, exec_ecall_notexit
 
 	mov	R1, #(rv_x0 + (4 * 10))  ; Exit retval is in register a0 (x10).
 	mov	a, @R1
@@ -368,6 +368,56 @@ exec_ecall:
 	; Loop forever so the debugger can see the retval preserved in
 	; the RV registers, too.
 	sjmp	.
+
+exec_ecall_notexit:
+	; there may ultimately be many functions here
+	; for now it's just memset (0x0401)
+	cjne    a, #1, exec_ecall_exception
+
+	; check MSB
+	inc     R1
+	cjne    @R1, #0x04, exec_ecall_exception
+
+exec_ecall_memset:
+	push    dph
+	push    dpl
+
+	;; check the destination address space
+	mov     R1, #(rv_x0 + (4 * 10) + 3) ; high byte of dst (a0)
+	mov     a, @R1
+	jb      a.7, memset_ret  ; read-only or SFR memory
+
+	dec     R1
+	dec     R1
+	mov     dph, @R1         ; MSB of dst
+	dec     R1
+	mov     dpl, @R1         ; LSB of dst
+
+	mov     R1, #(rv_x0 + (4 * 12)) ; LSB of count (a2) = 3rd param (n)
+	mov     (0 + 6), @R1            ; set into R6 direct (we don't use banks)
+	inc     R1
+	mov     (0 + 7), @R1            ; R7 = MSB of count
+
+	;; terminate early if 0 bytes to copy
+	orl     a, R6
+	jz      memset_ret
+
+	;; get the value to set
+	mov     R1, #(rv_x0 + (4 * 11)) ; low byte of a1 = 2nd param (c)
+        mov     a, @R1
+
+memset_loop:
+	movx    @DPTR, a
+	inc     DPTR
+	djnz    R6, memset_loop
+	;; inner 256b loop has terminated, restart if R7 nonzero
+	dec     R7
+	cjne    R7, #0xff, memset_loop
+
+memset_ret:
+	pop     dpl
+	pop     dph
+	ret
 
 exec_ecall_exception:
 	; Save the exception reason ("Environment call from M-mode") in
