@@ -1521,25 +1521,26 @@ exec_slli_shift_ne_3:
 exec_slli_shift_ge_4:
 	; accelerated implementation for counts above 3, using swap/xchd
 	; R1 has already been changed; we will use it for XCHD (only R0 or R1)
-	mov     R1, #rs1_dat3
-	mov     a, @R1
-	swap    a
-	mov     @R1, a                  ; rs1_dat3[7:4] is correct
-	mov     a, rs1_dat2
-	swap    a
-	xchd    a, @R1                  ; rs1_dat3[3:0] correct
-	dec     R1
-	mov     @R1, a                  ; rs1_dat2[7:4]
-	mov     a, rs1_dat1
-	swap    a
-	xchd    a, @R1                  ; rs1_dat2[3:0]
-	dec     R1
-	mov     @R1, a                  ; rs1_dat1[7:4]
-	mov     a, rs1_dat0
-	swap    a
-	xchd    a, @R1                  ; rs1_dat1[3:0]
-	anl     a, #0xf0
-	mov     rs1_dat0, a             ; rs1_dat0[7:0]
+        mov     R1, #rs1_dat0
+        mov     a, @R1
+        swap    a
+        anl     a, #0xf0
+        xch     a, @R1          ; loop invariant: A[7:4] is the next lower nybble
+
+        inc     R1
+        xchd    a, @R1
+        swap    a
+        xch     a, @R1
+
+        inc     R1
+        xchd    a, @R1
+        swap    a
+        xch     a, @R1
+
+        inc     R1
+        xchd    a, @R1
+        swap    a
+        xch     a, @R1
 
 	mov     a, R2
 	subb    a, #4
