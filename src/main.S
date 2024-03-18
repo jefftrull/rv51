@@ -1410,7 +1410,7 @@ exec_op_imm_rd_not_zero:
 	; into the low bits.
 	mov	a, funct3
 	rl	a
-        add     a, funct3
+	add     a, funct3
 
 	; Save dptr. Each execution function will need to restore dptr
 	; since they don't return to this function.
@@ -1667,11 +1667,15 @@ exec_srli_srai:
 	; Save the shift amount in R2.
 	mov	R2, a
 
-	; Jump if this is an arithmetic right shift.
-	jb	(((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_arith
+        ; determine the shift-in bit and store in B.7
+        ; optimize for the vastly more common srli
+        clr     B.7
+	jnb (((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_loop
+        ; srai. store sign bit in B.7
+	mov     B, @R1
 
 exec_srli_srai_loop:
-	clr	c
+	mov     c, B.7
 	mov	a, rs1_dat3
 	rrc	a
 	mov	rs1_dat3, a
@@ -1685,32 +1689,6 @@ exec_srli_srai_loop:
 	rrc	a
 	mov	rs1_dat0, a
 	djnz	R2, exec_srli_srai_loop
-	sjmp	exec_srli_srai_done
-
-exec_srli_srai_arith:
-	; Do the regular right shift if the sign bit is clear.
-	mov	a, rs1_dat3
-	jnb	ACC.7, exec_srli_srai_loop
-
-	; Fall through for the shift with the sign set.
-
-exec_srli_srai_loop_arith:
-	setb	c
-	mov	a, rs1_dat3
-	rrc	a
-	mov	rs1_dat3, a
-	mov	a, rs1_dat2
-	rrc	a
-	mov	rs1_dat2, a
-	mov	a, rs1_dat1
-	rrc	a
-	mov	rs1_dat1, a
-	mov	a, rs1_dat0
-	rrc	a
-	mov	rs1_dat0, a
-	djnz	R2, exec_srli_srai_loop_arith
-
-	; Fall through when done.
 
 exec_srli_srai_done:
 	mov	@R0, rs1_dat0
