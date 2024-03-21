@@ -1476,15 +1476,14 @@ exec_slli:
 	inc	R1
 	mov	rs1_dat3, @R1
 
-	; Skip shifting if the shift is zero.
+	; Determine if we can immediately enter 1b loop
 	mov	a, immediate_0
-	anl	a, #0x1F
+	anl	a, #0x03
+	cjne    a, immediate_0, exec_slli_shamt_0_or_ge_4
+	jz      exec_slli_shamt_0_or_ge_4
 
 	; Save the shift amount in R2.
 	mov	R2, a
-
-	; immediately handle the common shift=3 case
-	cjne    a, #0x3, exec_slli_shift_ne_3
 
 exec_slli_loop:
 	mov	a, rs1_dat0
@@ -1514,10 +1513,10 @@ exec_slli_shift_is_zero:
 	pop	dph
 	ret
 
-exec_slli_shift_ne_3:
-	jnc     exec_slli_shift_ge_4
-	jnz     exec_slli_loop          ; either 1 or 2
-	sjmp    exec_slli_shift_is_zero
+exec_slli_shamt_0_or_ge_4:
+	mov     a, immediate_0
+	anl     a, #0x1F
+	jz      exec_slli_shift_is_zero
 
 exec_slli_shift_ge_4:
 	; accelerated implementation for counts above 3, using swap/xchd
