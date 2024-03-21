@@ -1667,12 +1667,57 @@ exec_srli_srai:
 	; Save the shift amount in R2.
 	mov	R2, a
 
-        ; determine the shift-in bit and store in B.7
+        ; Point to the working data
+        mov     R1, #rs1_dat3
+
+        ; determine the shift-in bits and store in B
         ; optimize for the vastly more common srli
-        clr     B.7
-	jnb (((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_loop
-        ; srai. store sign bit in B.7
-	mov     B, @R1
+        clr     B
+	jnb (((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_x4_loop
+        ; SRAI. store sign bits in B: 0xff if top bit of rs1_dat3 is 1, 0 otherwise
+	mov     a, @R1
+        mov     C, a.7
+        subb    a, @R1
+        mov     B, a
+
+exec_srli_srai_x4_loop:
+        mov     a, R2
+        add     a, #(256-4)
+        jnc     exec_srli_srai_loop_setup
+
+        mov     R1, #rs1_dat3
+        mov     a, @R1
+        xrl     a, B
+        anl     a, #0xf0
+        xrl     a, B
+        swap    a
+        xch     a, @R1
+        swap    a
+
+        dec     R1
+        xch     a, @R1
+        swap    a
+        xchd    a, @R1
+
+        dec     R1
+        xch     a, @R1
+        swap    a
+        xchd    a, @R1
+
+        dec     R1
+        xch     a, @R1
+        swap    a
+        xchd    a, @R1
+
+        mov     a, R2
+        add     a, #-4
+        mov     R2, a
+
+        ajmp    exec_srli_srai_x4_loop
+
+exec_srli_srai_loop_setup:
+        mov     a, R2
+        jz      exec_srli_srai_done
 
 exec_srli_srai_loop:
 	mov     c, B.7
