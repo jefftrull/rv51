@@ -1670,12 +1670,41 @@ exec_srli_srai:
         ; Point to the working data
         mov     R1, #rs1_dat3
 
-	; Jump if this is an arithmetic right shift.
-	jb	(((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_arith
+	; Jump if this is not an arithmetic right shift.
+	jnb	(((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_not_arith
 
-        ; determine the shift-in bits and store in B
-        ; optimize for the vastly more common srli
-        clr     B.7
+        ; put the shift-in bit in B.7
+        mov     B, @R1
+
+exec_srli_srai_loop:
+	mov     c, B.7
+	mov	a, rs1_dat3
+	rrc	a
+	mov	rs1_dat3, a
+	mov	a, rs1_dat2
+	rrc	a
+	mov	rs1_dat2, a
+	mov	a, rs1_dat1
+	rrc	a
+	mov	rs1_dat1, a
+	mov	a, rs1_dat0
+	rrc	a
+	mov	rs1_dat0, a
+	djnz	R2, exec_srli_srai_loop
+	; Fall through when done.
+
+exec_srli_srai_done:
+	mov	@R0, rs1_dat0
+	inc	R0
+	mov	@R0, rs1_dat1
+	inc	R0
+	mov	@R0, rs1_dat2
+	inc	R0
+	mov	@R0, rs1_dat3
+
+	pop	dpl
+	pop	dph
+	ret
 
 exec_srli_srai_x4_loop:
         mov     a, R2
@@ -1715,40 +1744,12 @@ exec_srli_srai_x4_loop:
 exec_srli_srai_loop_setup:
         mov     a, R2
         jz      exec_srli_srai_done
+        sjmp    exec_srli_srai_loop
 
-exec_srli_srai_loop:
-	mov     c, B.7
-	mov	a, rs1_dat3
-	rrc	a
-	mov	rs1_dat3, a
-	mov	a, rs1_dat2
-	rrc	a
-	mov	rs1_dat2, a
-	mov	a, rs1_dat1
-	rrc	a
-	mov	rs1_dat1, a
-	mov	a, rs1_dat0
-	rrc	a
-	mov	rs1_dat0, a
-	djnz	R2, exec_srli_srai_loop
-
-exec_srli_srai_done:
-	mov	@R0, rs1_dat0
-	inc	R0
-	mov	@R0, rs1_dat1
-	inc	R0
-	mov	@R0, rs1_dat2
-	inc	R0
-	mov	@R0, rs1_dat3
-
-	pop	dpl
-	pop	dph
-	ret
-
-exec_srli_srai_arith:
+exec_srli_srai_not_arith:
 	; Do the appropriate type of shift
-	mov	B, @R1
-	ajmp	exec_srli_srai_loop
+        clr     B.7
+	ajmp	exec_srli_srai_x4_loop
 
 exec_ori:
 	; For each byte in the source and destination registers, OR the
