@@ -1670,15 +1670,12 @@ exec_srli_srai:
         ; Point to the working data
         mov     R1, #rs1_dat3
 
+	; Jump if this is an arithmetic right shift.
+	jb	(((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_arith
+
         ; determine the shift-in bits and store in B
         ; optimize for the vastly more common srli
-        clr     B
-	jnb (((instruction_0 - 0x20) * 8) + 30), exec_srli_srai_x4_loop
-        ; SRAI. store sign bits in B: 0xff if top bit of rs1_dat3 is 1, 0 otherwise
-	mov     a, @R1
-        mov     C, a.7
-        subb    a, @R1
-        mov     B, a
+        clr     B.7
 
 exec_srli_srai_x4_loop:
         mov     a, R2
@@ -1747,6 +1744,11 @@ exec_srli_srai_done:
 	pop	dpl
 	pop	dph
 	ret
+
+exec_srli_srai_arith:
+	; Do the appropriate type of shift
+	mov	B, @R1
+	ajmp	exec_srli_srai_loop
 
 exec_ori:
 	; For each byte in the source and destination registers, OR the
