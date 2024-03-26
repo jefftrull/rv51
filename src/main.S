@@ -1691,7 +1691,6 @@ exec_srli_srai_loop:
 	rrc	a
 	mov	rs1_dat0, a
 	djnz	R2, exec_srli_srai_loop
-	; Fall through when done.
 
 exec_srli_srai_done:
 	mov	@R0, rs1_dat0
@@ -1706,11 +1705,18 @@ exec_srli_srai_done:
 	pop	dph
 	ret
 
-exec_srli_srai_x4_loop:
-        mov     a, R2
-        add     a, #(256-4)
-        jnc     exec_srli_srai_loop_setup
+exec_srli_srai_not_arith:
+	; Do a logical shift right
+        clr     B.7
+        anl     a, #0x1c        ; extract x4 from orig shamt
+        jz      exec_srli_srai_loop_setup ; shamt < 4
 
+        ; divide shamt by 4 and run x4 loop
+        rr      a
+        rr      a
+        mov     R2, a
+
+exec_srli_srai_x4_loop:
         mov     R1, #rs1_dat3
         mov     a, @R1
         xrl     a, B
@@ -1735,21 +1741,16 @@ exec_srli_srai_x4_loop:
         swap    a
         xchd    a, @R1
 
-        mov     a, R2
-        add     a, #-4
-        mov     R2, a
+        djnz    R2, exec_srli_srai_x4_loop
 
-        ajmp    exec_srli_srai_x4_loop
+        ; at this point R2 is zero but there may be 1-3 shifts remaining
 
 exec_srli_srai_loop_setup:
-        mov     a, R2
+        mov     a, immediate_0
+        anl     a, #0x03
         jz      exec_srli_srai_done
+        mov     R2, a
         sjmp    exec_srli_srai_loop
-
-exec_srli_srai_not_arith:
-	; Do the appropriate type of shift
-        clr     B.7
-	ajmp	exec_srli_srai_x4_loop
 
 exec_ori:
 	; For each byte in the source and destination registers, OR the
